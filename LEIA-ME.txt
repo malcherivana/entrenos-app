@@ -1,0 +1,132 @@
+EntreNós — app React Native (Expo) + publicação na Vercel
+===========================================================
+
+O QUE MUDOU NESTA VERSÃO
+Esta versão aplica as correções do documento "Verificacao_Erros_EntreNos.docx"
+(revisão técnica do projeto) e prepara o app para também rodar publicado na
+Vercel, além de continuar funcionando no Expo Go. Resumo das correções:
+
+  NC01 — Senha do admin não fica mais em texto puro no código-fonte.
+         Agora só o HASH (SHA-256) dela fica salvo em src/storage.js; a senha
+         digitada é transformada em hash na hora e comparada com esse valor.
+  NC02 — A sessão do admin expira sozinha depois de 30 minutos (antes ficava
+         válida para sempre no aparelho).
+  NC03 — O protocolo da pergunta anônima (ex: EN-9F2K) agora é conferido
+         contra os protocolos já existentes antes de ser salvo, e sorteia de
+         novo em caso de repetição — nunca mais duas perguntas com o mesmo
+         código.
+  NC04 — Os formulários de "Locais" e "Vagas" no painel admin agora exigem
+         os campos essenciais preenchidos (não só o nome/título), com
+         mensagem de erro clara se faltar algo.
+  NC05 — Os botões "Adicionar local", "Publicar vaga" e "Entrar" ficam
+         desabilitados e mudam de texto ("Salvando...", "Entrando...")
+         enquanto a gravação acontece, para evitar duplo toque criar
+         registros repetidos.
+  NC06 — O app agora PODE sincronizar os dados entre aparelhos diferentes,
+         usando uma função da Vercel (api/data.js) com um banco de dados
+         (Vercel KV) por trás. Enquanto isso não for configurado (ver
+         abaixo), o app continua funcionando normalmente, só que salvando
+         cada conteúdo apenas no aparelho local — exatamente como antes.
+
+---------------------------------------------------------------
+PARTE 1 — RODAR NO EXPO GO (celular), como antes
+---------------------------------------------------------------
+Pré-requisitos: Node.js (18+) no computador e o app "Expo Go" no celular.
+
+1. Descompacte esta pasta e abra um terminal dentro dela.
+2. Rode:  npm install
+3. Rode:  npx expo start
+4. Escaneie o QR code com o Expo Go.
+
+Se aparecer aviso de versão incompatível, rode `npx expo install --fix` e
+tente `npx expo start` de novo.
+
+Usuário do admin: admin | Senha: entrenos-admin (a sessão expira em 30 min)
+
+---------------------------------------------------------------
+PARTE 2 — PUBLICAR NA VERCEL (versão web, pelo navegador)
+---------------------------------------------------------------
+1. Crie uma conta gratuita em vercel.com (dá para entrar com GitHub).
+2. Suba esta pasta para um repositório no GitHub (crie um repositório novo
+   e faça o upload/push de todos os arquivos, incluindo os ocultos como
+   .vercelignore).
+3. Na Vercel: "Add New…" → "Project" → escolha esse repositório.
+4. A Vercel detecta sozinha o comando de build (configurado em vercel.json
+   e no script "vercel-build" do package.json: `expo export --platform web`)
+   e a pasta de saída ("dist"). Não precisa mexer em nada — só clicar em
+   "Deploy".
+5. Ao final, a Vercel te dá uma URL pública, do tipo
+   https://entrenos-xxxxx.vercel.app — abrindo essa URL no navegador (ou no
+   celular), o app abre direto, sem precisar do Expo Go.
+
+LIGAR O BANCO DE DADOS COMPARTILHADO (resolve a NC06 de verdade)
+Sem este passo, cada pessoa que abrir o link continua vendo só os dados que
+já vieram prontos (os de exemplo) e qualquer alteração feita pelo admin fica
+só no navegador/aparelho dela. Para os dados serem os mesmos para todo
+mundo:
+
+1. No painel da Vercel, abra o projeto → aba "Storage" → "Create Database"
+   → escolha "KV" → conecte ao projeto (ela cria as variáveis de ambiente
+   sozinha, não precisa copiar nada).
+2. Clique em "Redeploy" (ou peça um novo deploy) para essas variáveis
+   passarem a valer na função api/data.js.
+3. Pronto — a versão publicada na Vercel passa a ler e gravar no KV
+   automaticamente.
+
+USAR ESSA MESMA API A PARTIR DO CELULAR (Expo Go)
+Se quiser que o app rodando no Expo Go também sincronize com o site
+publicado (em vez de só com o AsyncStorage do celular), abra
+src/config.js e preencha:
+     export const API_BASE_URL = "https://entrenos-xxxxx.vercel.app";
+(troque pela URL real que a Vercel te deu). Sem internet, ou se a API não
+responder, o app volta sozinho a usar o AsyncStorage local — nada trava.
+
+---------------------------------------------------------------
+NAVEGAÇÃO
+---------------------------------------------------------------
+- Barra de abas embaixo: Início, Saúde, Tratamento, Perguntas, Vagas, Descarte.
+- Ícone de engrenagem no topo: acesso administrativo.
+
+ANONIMATO
+- Nenhuma tela pública pede login, nome ou e-mail.
+- Perguntas geram um código de protocolo (ex: EN-9F2K) sem vínculo com
+  nenhum dado pessoal, e sem repetição entre perguntas (NC03).
+- Só a equipe administrativa faz login, em uma tela separada, com sessão
+  que expira sozinha em 30 minutos (NC02).
+
+TRATAMENTO SEM MAPA
+- A aba "Tratamento" é uma lista pesquisável por texto (nome, cidade,
+  bairro, tipo de atendimento) — sem mapas, sem geolocalização.
+
+---------------------------------------------------------------
+GERAR UM APP INSTALÁVEL (APK/IPA), SEM DEPENDER DO EXPO GO
+---------------------------------------------------------------
+     npx eas login
+     npx eas build --platform android
+(ou --platform ios). Exige conta gratuita na Expo e internet.
+
+---------------------------------------------------------------
+ESTRUTURA DE ARQUIVOS
+---------------------------------------------------------------
+App.js                          → navegação principal (barra de abas)
+app.json                        → configuração do Expo (nome, ícone, splash, web)
+vercel.json                     → como a Vercel deve construir e servir o site
+.vercelignore                   → arquivos que a Vercel não precisa subir
+package.json                    → dependências do projeto e script "vercel-build"
+babel.config.js                 → configuração do Babel exigida pelo Expo
+api/data.js                     → função serverless da Vercel (lê/grava no Vercel KV)
+src/theme.js                    → paleta de cores do logo
+src/data.js                     → conteúdo inicial (editável direto no código)
+src/config.js                   → URL da API da Vercel (para o Expo Go sincronizar)
+src/storage.js                  → AsyncStorage + API da Vercel, hash de senha, protocolo
+src/components/Chip.js          → filtro reutilizável (usado em várias telas)
+src/screens/HomeScreen.js       → tela inicial
+src/screens/SaudeScreen.js      → temas de saúde sexual
+src/screens/TratamentoScreen.js → lista pesquisável de locais
+src/screens/PerguntasScreen.js  → perguntas anônimas + protocolo
+src/screens/VagasScreen.js      → mural de vagas
+src/screens/DescarteScreen.js   → descarte consciente
+src/screens/AdminScreen.js      → painel administrativo (login restrito)
+assets/logo.png                 → logo completo
+assets/logo-symbol.png          → símbolo dos elos
+assets/icon.png, splash.png, adaptive-icon.png → ícones/splash gerados do logo
